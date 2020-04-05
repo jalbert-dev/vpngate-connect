@@ -1,18 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <RootNamespace>vpngate_connect</RootNamespace>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <RootNamespace>vpngate_connect</RootNamespace>
   </PropertyGroup>
-
   <ItemGroup>
+    <Compile Include="DomainTypes.fs" />
+    <Compile Include="CliArguments.fs" />
+    <Compile Include="DataSource.fs" />
+    <Compile Include="Gui.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Argu" Version="6.0.0" />
     <PackageReference Include="FSharp.Data" Version="3.3.3" />
   </ItemGroup>
-
 </Project>
