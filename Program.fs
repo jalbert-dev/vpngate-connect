@@ -21,7 +21,15 @@ let main argv =
     | Ok args -> 
         match (getDataSourceFromArgs args |> DataSource.connect) with
         | Ok rows -> 
-            Gui.showMenu rows
+            match Gui.showMenu rows with
+            | Some selected ->
+                printfn "Selected %s" (selected.``#HostName``)
+                selected.OpenVPN_ConfigData_Base64
+                |> Convert.FromBase64String
+                |> Text.Encoding.UTF8.GetString
+                |> printfn "Payload:\n%s"
+            | None ->
+                printfn "No VPN selected"
             0
         | Error err -> 
             err |> errorToMessage |> printfn "%s" 
