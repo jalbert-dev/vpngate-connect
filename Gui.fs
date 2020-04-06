@@ -5,15 +5,25 @@ open System
 type private State =
     | SelectVpn
     | Result of VpnList.Row option
-type private MenuStatus = { menu: State; data: VpnList.Row array; selectionIndex: int }
+type private MenuStatus = { 
+    menu: State
+    data: VpnList.Row array
+    selectionIndex: int
+    }
 
-let private renderItem selected (row : VpnList.Row) =
-    sprintf "[%c]  %s  %3dms, %s (%s)" 
+let private trimToLength width str =
+    if String.length str > width then
+        str.[..width-4] + "..."
+    else
+        str
+let private renderItem selected maxWidth (row : VpnList.Row)  =
+    sprintf "  [%c]  %s  %3dms, %s (%s)" 
         (if selected then 'X' else ' ')
         row.CountryShort
         (int row.Ping)
         row.``#HostName``
         row.IP
+    |> trimToLength maxWidth
 
 let private resultState result state = 
     { state with menu=Result result }
@@ -26,12 +36,22 @@ let private confirmVpn state =
     //       I guess we can regenerate this any time the filter/sort criteria change.
     state |> resultState (Some state.data.[state.selectionIndex])
 
+let private listDimensions termWidth termHeight = (termWidth - 2, termHeight - 4)
+
 let private renderMenu state =
     Console.Clear()
     Console.WriteLine()
+
     match state.menu with
-    | SelectVpn -> state.data.[0..20] |> Array.iteri (fun i x -> renderItem (i = state.selectionIndex) x |> printfn "  %s")
-    | Result _ -> ()
+    | SelectVpn ->
+        let listW, listH = listDimensions Console.WindowWidth Console.WindowHeight
+        let displayMin = max 0 (state.selectionIndex - listH / 2)
+        let displayMax = min (state.data.Length - 1) (displayMin + listH)
+
+        let displaySlice = state.data.[displayMin..displayMax]
+        displaySlice |> Array.iteri (fun i x -> renderItem (i = state.selectionIndex - displayMin) listW x |> printfn "%s")
+    | Result _ -> 
+        ()
     state
 
 let private selectVpnInputHandler = function
