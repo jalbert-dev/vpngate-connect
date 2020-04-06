@@ -23,6 +23,9 @@ module ProgramFlow =
         | Data data -> f data
         | Result (x, y) -> Result (x, y)
     let map f = bind (f >> Data)
+    let unwrap = function
+        | Data data -> data
+        | Result (x, y) -> failwith (sprintf "Attempted to unwrap result (%d, %A)!!" x y)
 
     module Operators =
         let (>>=) a b = bind b a
@@ -55,6 +58,18 @@ let extractOpenVpnConfig (vpnData : VpnList.Row) =
         |> Text.Encoding.UTF8.GetString
         |> ProgramFlow.Data
     with ex -> ex.Message |> runtimeError
+let appendCustomConfigs (argsGetter : unit -> ParseResults<Cli.ArgParser>) configStr =
+    match argsGetter().TryGetResult(<@ Cli.Append @>) with
+    | Some paths ->
+        try 
+            let appends = paths |> List.map IO.File.ReadAllText
+            let modifiedCfg = String.concat "\n" <| seq {
+                yield configStr
+                for a in appends -> a
+            }
+            ProgramFlow.Data modifiedCfg
+        with ex -> ex.Message |> runtimeError
+    | None -> ProgramFlow.Data configStr
 let writeConfigToTempFile str =
     try
         let tempFile = IO.Path.GetTempFileName()
@@ -70,12 +85,13 @@ let invokeOpenVpn configPath =
 
 let execute argv = 
     let args = argv |> parseArguments
+    let getArgs = fun () -> args |> ProgramFlow.unwrap
 
     args
     >>= connectToDataSource 
     >>= promptForSelection 
     >>= extractOpenVpnConfig
-    //>>= appendCustomConfig
+    >>= appendCustomConfigs getArgs
     >>= writeConfigToTempFile
     >>= invokeOpenVpn
 
