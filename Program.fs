@@ -52,13 +52,19 @@ let connectToDataSource args =
     | Ok rows -> ProgramFlow.Data rows
     | Error errCode -> errCode |> errorToMessage |> runtimeError
 
+let resetConsoleProperties () =
+    Console.CursorVisible <- true
+    Console.ResetColor()
+
 let promptForSelection rows =
+    Console.CancelKeyPress.Add(fun _ -> resetConsoleProperties())
     Console.CursorVisible <- false
     Console.Clear()
     let rv = match Gui.showMenu drawFullScreen rows with
              | Some selection -> ProgramFlow.Data selection
              | None -> normalExitWithMsg "No VPN selected"
-    Console.CursorVisible <- true
+    resetConsoleProperties()
+    Console.Clear()
     rv
 
 let extractOpenVpnConfig (vpnData : VpnList.Row) =

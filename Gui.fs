@@ -16,16 +16,19 @@ let private trimToLength width str =
         str.[..width-4] + "..."
     else
         str
-        
+
 let private padToLength width (padChar : Char) str =
     str + String.replicate (width - String.length str) (string padChar)
 
-let private blankLine width =
-    String.Empty |> padToLength width ' '
+let private lineOf width char =
+    String.Empty |> padToLength width char
 
-let private renderItem selected maxWidth (row : VpnList.Row)  =
-    sprintf "  [%c]  %s  %3dms, %s (%s)" 
+let private blankLine width = lineOf width ' '
+
+let private renderItem index selected maxWidth (row : VpnList.Row)  =
+    sprintf "  [%c] %3d. %s  %3dms, %s (%s)" 
         (if selected then 'X' else ' ')
+        index
         row.CountryShort
         (int row.Ping)
         row.``#HostName``
@@ -46,7 +49,7 @@ let private confirmVpn state =
     //       I guess we can regenerate this any time the filter/sort criteria change.
     state |> resultState (Some state.data.[state.selectionIndex])
 
-let private listDimensions termWidth termHeight = (termWidth - 2, termHeight - 4)
+let private listDimensions termWidth termHeight = (termWidth - 2, termHeight - 7)
 
 let private renderMenu state =
     let cw = Console.WindowWidth
@@ -55,21 +58,26 @@ let private renderMenu state =
     seq {
         match state.menu with
         | SelectVpn ->
-            yield blankLine cw
+            yield "  Select a VPN endpoint to connect to" |> trimToLength cw
+            yield lineOf cw '-'
+
             let listW, listH = listDimensions cw ch
             let displayMin = max 0 (state.selectionIndex - listH / 2)
             let displayMax = min (state.data.Length - 1) (displayMin + listH)
 
             let displaySlice = state.data.[displayMin..displayMax]
             for i in 0..displaySlice.Length-1 ->
-                renderItem (i = state.selectionIndex - displayMin) listW displaySlice.[i]
-                |> padToLength cw ' '
+                renderItem (displayMin+i+1) (i = state.selectionIndex - displayMin) listW displaySlice.[i]
             
-            for i in (Array.length displaySlice) .. (ch - 3) -> blankLine cw
+            for i in (Array.length displaySlice) .. (ch - 7) -> blankLine cw
+            yield lineOf cw '-'
+            yield " q - Quit without selecting | Enter - Confirm selection" |> trimToLength cw
+            yield lineOf cw '-'
             
         | Result _ -> 
             yield ""
     }
+    |> Seq.map (padToLength cw ' ')
     |> String.concat "\n"
 
 let private selectVpnInputHandler = function
