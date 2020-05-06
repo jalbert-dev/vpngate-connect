@@ -16,6 +16,10 @@ let private trimToLength width str =
         str.[..width-4] + "..."
     else
         str
+let private padToLength width (padChar : Char) str =
+    str + String.replicate (width - String.length str) (string padChar)
+let private writeBlankLine width =
+    String.Empty |> padToLength width ' ' |> Console.WriteLine
 let private renderItem selected maxWidth (row : VpnList.Row)  =
     sprintf "  [%c]  %s  %3dms, %s (%s)" 
         (if selected then 'X' else ' ')
@@ -24,11 +28,6 @@ let private renderItem selected maxWidth (row : VpnList.Row)  =
         row.``#HostName``
         row.IP
     |> trimToLength maxWidth
-let private clearConsoleContents w h =
-    Console.SetCursorPosition(0, 0)
-    for y = 1 to h-1 do
-        Console.WriteLine(String.replicate (w - 1) " ")
-    Console.SetCursorPosition(0, 0)
 
 let private resultState result state = 
     { state with menu=Result result }
@@ -47,7 +46,8 @@ let private renderMenu state =
     let cw = Console.WindowWidth
     let ch = Console.WindowHeight
 
-    clearConsoleContents cw ch
+    Console.SetCursorPosition(0, 0)
+    writeBlankLine cw
 
     match state.menu with
     | SelectVpn ->
@@ -56,7 +56,14 @@ let private renderMenu state =
         let displayMax = min (state.data.Length - 1) (displayMin + listH)
 
         let displaySlice = state.data.[displayMin..displayMax]
-        displaySlice |> Array.iteri (fun i x -> renderItem (i = state.selectionIndex - displayMin) listW x |> printfn "%s")
+        displaySlice |> Array.iteri (
+            fun i x -> 
+                renderItem (i = state.selectionIndex - displayMin) listW x 
+                |> padToLength cw ' '
+                |> Console.WriteLine)
+        
+        for i = Array.length displaySlice to ch - 3 do
+            writeBlankLine cw
     | Result _ -> 
         ()
     state
