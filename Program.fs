@@ -38,18 +38,29 @@ let usageError msg = ProgramFlow.Result (2, Some msg)
 
 open ProgramFlow.Operators
 
+let private drawFullScreen (str : String) =
+    Console.SetCursorPosition(0, 0)
+    str |> Console.WriteLine
+
 let parseArguments argv =
     match argv |> Cli.parseArgs with
     | Ok args -> ProgramFlow.Data args
     | Error msg -> msg |> usageError
+
 let connectToDataSource args =
     match getDataSourceFromArgs args |> DataSource.connect with
     | Ok rows -> ProgramFlow.Data rows
     | Error errCode -> errCode |> errorToMessage |> runtimeError
+
 let promptForSelection rows =
-    match Gui.showMenu rows with
-    | Some selection -> ProgramFlow.Data selection
-    | None -> normalExitWithMsg "No VPN selected"
+    Console.CursorVisible <- false
+    Console.Clear()
+    let rv = match Gui.showMenu drawFullScreen rows with
+             | Some selection -> ProgramFlow.Data selection
+             | None -> normalExitWithMsg "No VPN selected"
+    Console.CursorVisible <- true
+    rv
+
 let extractOpenVpnConfig (vpnData : VpnList.Row) =
     printfn "Selected %s" (vpnData.``#HostName``)
     try
@@ -58,6 +69,7 @@ let extractOpenVpnConfig (vpnData : VpnList.Row) =
         |> Text.Encoding.UTF8.GetString
         |> ProgramFlow.Data
     with ex -> ex.Message |> runtimeError
+
 let appendCustomConfigs (argsGetter : unit -> ParseResults<Cli.ArgParser>) configStr =
     match argsGetter().TryGetResult(<@ Cli.Append @>) with
     | Some paths ->
@@ -70,12 +82,14 @@ let appendCustomConfigs (argsGetter : unit -> ParseResults<Cli.ArgParser>) confi
             ProgramFlow.Data modifiedCfg
         with ex -> ex.Message |> runtimeError
     | None -> ProgramFlow.Data configStr
+
 let writeConfigToTempFile str =
     try
         let tempFile = IO.Path.GetTempFileName()
         IO.File.WriteAllText(tempFile, str)
         ProgramFlow.Data tempFile
     with ex -> ex.Message |> runtimeError
+    
 let invokeOpenVpn configPath =
     try
         let proc = Diagnostics.Process.Start(fileName="openvpn", arguments=configPath)

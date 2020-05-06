@@ -16,10 +16,13 @@ let private trimToLength width str =
         str.[..width-4] + "..."
     else
         str
+        
 let private padToLength width (padChar : Char) str =
     str + String.replicate (width - String.length str) (string padChar)
-let private writeBlankLine width =
-    String.Empty |> padToLength width ' ' |> Console.WriteLine
+
+let private blankLine width =
+    String.Empty |> padToLength width ' '
+
 let private renderItem selected maxWidth (row : VpnList.Row)  =
     sprintf "  [%c]  %s  %3dms, %s (%s)" 
         (if selected then 'X' else ' ')
@@ -31,10 +34,13 @@ let private renderItem selected maxWidth (row : VpnList.Row)  =
 
 let private resultState result state = 
     { state with menu=Result result }
+
 let private incrementSelection state = 
     { state with selectionIndex=min (state.data.Length-1) (state.selectionIndex+1)}
+
 let private decrementSelection state = 
     { state with selectionIndex=max 0 (state.selectionIndex-1)}
+
 let private confirmVpn state =
     // TODO: SelectVpn should probably own a seq that's a subslice of the data which is what's actually displayed.
     //       I guess we can regenerate this any time the filter/sort criteria change.
@@ -46,27 +52,25 @@ let private renderMenu state =
     let cw = Console.WindowWidth
     let ch = Console.WindowHeight
 
-    Console.SetCursorPosition(0, 0)
-    writeBlankLine cw
+    seq {
+        match state.menu with
+        | SelectVpn ->
+            yield blankLine cw
+            let listW, listH = listDimensions cw ch
+            let displayMin = max 0 (state.selectionIndex - listH / 2)
+            let displayMax = min (state.data.Length - 1) (displayMin + listH)
 
-    match state.menu with
-    | SelectVpn ->
-        let listW, listH = listDimensions cw ch
-        let displayMin = max 0 (state.selectionIndex - listH / 2)
-        let displayMax = min (state.data.Length - 1) (displayMin + listH)
-
-        let displaySlice = state.data.[displayMin..displayMax]
-        displaySlice |> Array.iteri (
-            fun i x -> 
-                renderItem (i = state.selectionIndex - displayMin) listW x 
+            let displaySlice = state.data.[displayMin..displayMax]
+            for i in 0..displaySlice.Length-1 ->
+                renderItem (i = state.selectionIndex - displayMin) listW displaySlice.[i]
                 |> padToLength cw ' '
-                |> Console.WriteLine)
-        
-        for i = Array.length displaySlice to ch - 3 do
-            writeBlankLine cw
-    | Result _ -> 
-        ()
-    state
+            
+            for i in (Array.length displaySlice) .. (ch - 3) -> blankLine cw
+            
+        | Result _ -> 
+            yield ""
+    }
+    |> String.concat "\n"
 
 let private selectVpnInputHandler = function
     | ConsoleKey.DownArrow -> incrementSelection
@@ -82,18 +86,12 @@ let private updateMenu state =
     | SelectVpn -> state |> selectVpnInputHandler (getKey())
     | Result _ -> state
 
-let rec private execMenu state =
+let rec private execMenu drawFunction state =
     match state.menu with
     | Result result -> result
     | _ -> 
-        state
-        |> renderMenu
-        |> updateMenu
-        |> execMenu
+        state |> renderMenu |> drawFunction
+        state |> updateMenu |> execMenu drawFunction
     
-let showMenu data = 
-    Console.Clear()
-    Console.CursorVisible <- false
-    let rv = execMenu { menu=SelectVpn; data=data; selectionIndex=0 }
-    Console.CursorVisible <- true
-    rv
+let showMenu drawFunction data =
+    execMenu drawFunction { menu=SelectVpn; data=data; selectionIndex=0 }
