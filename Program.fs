@@ -47,8 +47,10 @@ let parseArguments argv =
     | Ok args -> ProgramFlow.Data args
     | Error msg -> msg |> usageError
 
-let connectToDataSource args =
-    match getDataSourceFromArgs args |> DataSource.connect with
+let determineDataSource args = args |> getDataSourceFromArgs |> ProgramFlow.Data
+
+let connectToDataSource dataSource =
+    match dataSource |> DataSource.connect with
     | Ok rows -> ProgramFlow.Data rows
     | Error errCode -> errCode |> errorToMessage |> runtimeError
 
@@ -103,12 +105,24 @@ let invokeOpenVpn configPath =
         ProgramFlow.Result (proc.ExitCode, None)
     with ex -> ex.Message |> runtimeError
 
+let printDataSource dataSourceDescriptor = 
+    let (_, path) = dataSourceDescriptor
+    printfn "Fetching endpoint list from '%s'..." path
+    dataSourceDescriptor
+
+let printFetchResult rows =
+    printfn "Fetched %d rows from endpoint source." (Array.length rows)
+    rows
+
 let execute argv = 
     let args = argv |> parseArguments
     let getArgs = fun () -> args |> ProgramFlow.unwrap
 
     args
+    >>= determineDataSource
+    <!> printDataSource
     >>= connectToDataSource 
+    <!> printFetchResult
     >>= promptForSelection 
     >>= extractOpenVpnConfig
     >>= appendCustomConfigs getArgs
