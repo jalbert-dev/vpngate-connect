@@ -24,6 +24,11 @@ let private renderItem selected maxWidth (row : VpnList.Row)  =
         row.``#HostName``
         row.IP
     |> trimToLength maxWidth
+let private clearConsoleContents w h =
+    Console.SetCursorPosition(0, 0)
+    for y = 1 to h-1 do
+        Console.WriteLine(String.replicate (w - 1) " ")
+    Console.SetCursorPosition(0, 0)
 
 let private resultState result state = 
     { state with menu=Result result }
@@ -39,12 +44,14 @@ let private confirmVpn state =
 let private listDimensions termWidth termHeight = (termWidth - 2, termHeight - 4)
 
 let private renderMenu state =
-    Console.Clear()
-    Console.WriteLine()
+    let cw = Console.WindowWidth
+    let ch = Console.WindowHeight
+
+    clearConsoleContents cw ch
 
     match state.menu with
     | SelectVpn ->
-        let listW, listH = listDimensions Console.WindowWidth Console.WindowHeight
+        let listW, listH = listDimensions cw ch
         let displayMin = max 0 (state.selectionIndex - listH / 2)
         let displayMax = min (state.data.Length - 1) (displayMin + listH)
 
@@ -78,4 +85,8 @@ let rec private execMenu state =
         |> execMenu
     
 let showMenu data = 
-    execMenu { menu=SelectVpn; data=data; selectionIndex=0 }
+    Console.Clear()
+    Console.CursorVisible <- false
+    let rv = execMenu { menu=SelectVpn; data=data; selectionIndex=0 }
+    Console.CursorVisible <- true
+    rv
