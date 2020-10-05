@@ -16,13 +16,18 @@ let private expectTextResponse response =
     | Text body -> Ok body
     | _ -> Error UnexpectedContentType
 
+let private isJunkLine (x : string) =
+    x.Trim() = "*vpn_servers" ||
+    x.StartsWith("#HostName") ||
+    x.Trim() = "*"
+
 let private normalizeVpnGateCsv (csv : string) = 
     match csv with
     | "" ->
         Error EmptyCsv
     | _ ->
-        let lines = csv.Split('\n')
-        lines.[2..lines.Length-3]
+        csv.Split('\n')
+        |> Array.filter (not << isJunkLine)
         |> String.concat "\n"
         |> Ok
 

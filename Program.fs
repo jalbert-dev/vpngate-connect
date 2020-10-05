@@ -12,7 +12,7 @@ let errorToMessage = function
 
 open ProgramFlow.Operators
 
-let private drawFullScreen (str : String) =
+let private drawFullScreen (str : string) =
     Console.SetCursorPosition(0, 0)
     Console.WriteLine str
 
