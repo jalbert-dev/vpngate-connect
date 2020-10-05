@@ -85,9 +85,9 @@ let writeConfigToTempFile str =
         ContinueData tempFile
     with ex -> ex.Message |> ProgramFlow.runtimeError
     
-let invokeOpenVpn configPath =
+let invokeOpenVpn execPath configPath =
     try
-        let proc = Diagnostics.Process.Start(fileName="openvpn", arguments=configPath)
+        let proc = Diagnostics.Process.Start(fileName=execPath, arguments=configPath)
         proc.WaitForExit()
         ExecResult (proc.ExitCode, None)
     with ex -> ex.Message |> ProgramFlow.runtimeError
@@ -112,7 +112,7 @@ let execute (config: Config) =
     >>= extractOpenVpnConfig
     >>= readAndMergeConfigs config.ConfigPaths
     >>= writeConfigToTempFile
-    >>= invokeOpenVpn
+    >>= invokeOpenVpn config.OpenVpnPath
 
 [<EntryPoint>]
 let main argv =
