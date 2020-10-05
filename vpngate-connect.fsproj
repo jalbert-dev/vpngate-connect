@@ -9,6 +9,7 @@
     <Compile Include="CliArguments.fs" />
     <Compile Include="DataSource.fs" />
     <Compile Include="Gui.fs" />
+    <Compile Include="Config.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

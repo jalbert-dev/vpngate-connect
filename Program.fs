@@ -1,9 +1,6 @@
 ﻿open System
 open Argu
-
-let DefaultVpnListSource = (Cli.RemoteUrl, "https://www.vpngate.net/api/iphone")
-let getDataSourceFromArgs (args : ParseResults<Cli.ArgParser>) =
-    args.TryGetResult(<@ Cli.Source @>) |> Option.defaultValue DefaultVpnListSource
+open VpnGateConnect
 
 let errorToMessage = function
     | UnexpectedStatusCode code -> sprintf "Unexpected status code from response: %d" code
@@ -40,31 +37,34 @@ open ProgramFlow.Operators
 
 let private drawFullScreen (str : String) =
     Console.SetCursorPosition(0, 0)
-    str |> Console.WriteLine
+    Console.WriteLine str
 
 let parseArguments argv =
     match argv |> Cli.parseArgs with
     | Ok args -> ProgramFlow.Data args
-    | Error msg -> msg |> usageError
-
-let determineDataSource args = args |> getDataSourceFromArgs |> ProgramFlow.Data
+    | Error msg -> usageError msg
 
 let connectToDataSource dataSource =
     match dataSource |> DataSource.connect with
     | Ok rows -> ProgramFlow.Data rows
     | Error errCode -> errCode |> errorToMessage |> runtimeError
 
-let resetConsoleProperties () =
+let resetConsoleProperties _ =
     Console.CursorVisible <- true
     Console.ResetColor()
 
-let promptForSelection rows =
-    Console.CancelKeyPress.Add(fun _ -> resetConsoleProperties())
+let promptForSelection filterPredicate rows =
+    Console.CancelKeyPress.Add(resetConsoleProperties)
     Console.CursorVisible <- false
     Console.Clear()
-    let rv = match Gui.showMenu drawFullScreen rows with
-             | Some selection -> ProgramFlow.Data selection
-             | None -> normalExitWithMsg "No VPN selected"
+
+    let filteredRows = Array.filter filterPredicate rows
+
+    let rv = 
+        match Gui.execRowSelectorMenu drawFullScreen filteredRows with
+        | Some selection -> ProgramFlow.Data selection
+        | None -> normalExitWithMsg "No VPN selected"
+    
     resetConsoleProperties()
     Console.Clear()
     rv
@@ -78,18 +78,15 @@ let extractOpenVpnConfig (vpnData : VpnList.Row) =
         |> ProgramFlow.Data
     with ex -> ex.Message |> runtimeError
 
-let appendCustomConfigs (argsGetter : unit -> ParseResults<Cli.ArgParser>) configStr =
-    match argsGetter().TryGetResult(<@ Cli.Append @>) with
-    | Some paths ->
-        try 
-            let appends = paths |> List.map IO.File.ReadAllText
-            let modifiedCfg = String.concat "\n" <| seq {
-                yield configStr
-                for a in appends -> a
-            }
-            ProgramFlow.Data modifiedCfg
-        with ex -> ex.Message |> runtimeError
-    | None -> ProgramFlow.Data configStr
+let appendCustomConfigs configPaths configStr =
+    try 
+        let appends = configPaths |> Array.map IO.File.ReadAllText
+        let modifiedCfg = String.concat "\n" <| seq {
+            yield configStr
+            for a in appends -> a
+        }
+        ProgramFlow.Data modifiedCfg
+    with ex -> ex.Message |> runtimeError
 
 let writeConfigToTempFile str =
     try
@@ -105,33 +102,30 @@ let invokeOpenVpn configPath =
         ProgramFlow.Result (proc.ExitCode, None)
     with ex -> ex.Message |> runtimeError
 
-let printDataSource dataSourceDescriptor = 
-    let (_, path) = dataSourceDescriptor
+let printDataSource (_, path) = 
     printfn "Fetching endpoint list from '%s'..." path
-    dataSourceDescriptor
 
 let printFetchResult rows =
     printfn "Fetched %d rows from endpoint source." (Array.length rows)
     rows
 
-let execute argv = 
-    let args = argv |> parseArguments
-    let getArgs = fun () -> args |> ProgramFlow.unwrap
+let execute (config: Config) =
+    printDataSource config.DataSource
 
-    args
-    >>= determineDataSource
-    <!> printDataSource
-    >>= connectToDataSource 
+    let regionFilter = fun (x: VpnList.Row) -> 
+        config.AllowedRegions.Length = 0 || config.AllowedRegions |> Array.contains (x.CountryShort.ToLower())
+    
+    connectToDataSource config.DataSource
     <!> printFetchResult
-    >>= promptForSelection 
+    >>= promptForSelection regionFilter
     >>= extractOpenVpnConfig
-    >>= appendCustomConfigs getArgs
+    >>= appendCustomConfigs config.ConfigPaths
     >>= writeConfigToTempFile
     >>= invokeOpenVpn
 
 [<EntryPoint>]
 let main argv =
-    match argv |> execute with
+    match argv |> parseArguments <!> Config.fromArgs >>= execute with
     | ProgramFlow.Data _ ->
         printfn "Error: program exited without result"; 1
     | ProgramFlow.Result (errCode, msg) ->
