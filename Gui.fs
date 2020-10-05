@@ -8,6 +8,7 @@ type private State =
 type private MenuStatus = { 
     Menu: State
     Data: VpnList.Row array
+    RTT: string option array
     SelectionIndex: int
 }
 
@@ -25,12 +26,12 @@ let private lineOf width char =
 
 let private blankLine width = lineOf width ' '
 
-let private renderItem index selected maxWidth (row : VpnList.Row)  =
-    sprintf "  [%c] %3d. %s  %3dms, %s (%s)" 
+let private renderItem index selected maxWidth (row : VpnList.Row) rtt  =
+    sprintf "  [%c] %3d. %s  %sms, %s (%s)" 
         (if selected then 'X' else ' ')
         index
         row.CountryShort
-        (int row.Ping)
+        (rtt |> Option.defaultValue (string (int row.Ping)) |> padToLength 3 ' ')
         row.``#HostName``
         row.IP
     |> trimToLength maxWidth
@@ -44,9 +45,19 @@ let private incrementSelection state =
 let private decrementSelection state = 
     { state with SelectionIndex=max 0 (state.SelectionIndex-1)}
 
+let private pingSelection state =
+    let pinger = new Net.NetworkInformation.Ping()
+    let reply = pinger.Send(state.Data.[state.SelectionIndex].IP, 1000)
+
+    // This is pretty shoddy and chucks immutability right out the window
+    Array.set state.RTT state.SelectionIndex 
+        (match reply.Status with
+        | Net.NetworkInformation.IPStatus.Success -> string reply.RoundtripTime |> Some
+        | _ -> Some "???")
+
+    state
+
 let private confirmSelection state =
-    // TODO: SelectVpn should probably own a seq that's a subslice of the data which is what's actually displayed.
-    //       I guess we can regenerate this any time the filter/sort criteria change.
     state |> resultState (Some state.Data.[state.SelectionIndex])
 
 [<Literal>]
@@ -72,13 +83,13 @@ let private renderMenu state =
             let displaySlice = state.Data.[displayMin..displayMax]
             for i in 0..displaySlice.Length-1 ->
                 let isSelected = (i = state.SelectionIndex - displayMin)
-                renderItem (displayMin+i+1) isSelected listWidth displaySlice.[i]
+                renderItem (displayMin+i+1) isSelected listWidth displaySlice.[i] state.RTT.[displayMin + i]
             
             for _ in (Array.length displaySlice) .. (consoleHeight - VerticalPadding) -> 
                 blankLine consoleWidth
             
             yield lineOf consoleWidth '-'
-            yield " q - Quit without selecting | Enter - Confirm selection" |> trimToLength consoleWidth
+            yield " q - Quit without selecting | p - Update RTT (ping) of selection | Enter - Confirm selection" |> trimToLength consoleWidth
             yield lineOf consoleWidth '-'
             
         | Result _ -> 
@@ -91,6 +102,7 @@ let private selectVpnInputHandler = function
     | ConsoleKey.DownArrow -> incrementSelection
     | ConsoleKey.UpArrow -> decrementSelection
     | ConsoleKey.Enter -> confirmSelection
+    | ConsoleKey.P -> pingSelection
     | ConsoleKey.Q -> resultState None
     | ConsoleKey.Escape -> resultState None
     | _ -> id
@@ -111,4 +123,10 @@ let rec private menuLoop drawFunction state =
 
 /// Shows a menu for choosing from a list of VPN items.
 let execRowSelectorMenu drawFunction data =
-    { Menu=SelectVpn; Data=data; SelectionIndex=0 } |> menuLoop drawFunction 
+    { 
+        Menu=SelectVpn; 
+        Data=data; 
+        RTT=data |> Array.map (fun _ -> None)
+        SelectionIndex=0
+    } 
+    |> menuLoop drawFunction 
