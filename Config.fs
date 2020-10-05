@@ -12,6 +12,7 @@ type Config = {
 module Config =
     let private defaultVpnListSource = (Cli.RemoteUrl, "https://www.vpngate.net/api/iphone")
 
+    /// Constructs a configuration object from a completed argument parse.
     let fromArgs (args: ParseResults<Cli.ArgParser>) = { 
             DataSource = 
                 args.TryGetResult(<@ Cli.Source @>) 

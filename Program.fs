@@ -12,7 +12,7 @@ let errorToMessage = function
 
 open ProgramFlow.Operators
 
-let private drawFullScreen (str : string) =
+let private overwriteConsole (str : string) =
     Console.SetCursorPosition(0, 0)
     Console.WriteLine str
 
@@ -30,6 +30,7 @@ let resetConsoleProperties _ =
     Console.CursorVisible <- true
     Console.ResetColor()
 
+/// Shows a menu prompting user to select a VPN from those allowed by given filter predicate.
 let promptForSelection filterPredicate rows =
     Console.CancelKeyPress.Add(resetConsoleProperties)
     Console.CursorVisible <- false
@@ -38,7 +39,7 @@ let promptForSelection filterPredicate rows =
     let filteredRows = Array.filter filterPredicate rows
 
     let rv = 
-        match Gui.execRowSelectorMenu drawFullScreen filteredRows with
+        match Gui.execRowSelectorMenu overwriteConsole filteredRows with
         | Some selection -> ContinueData selection
         | None -> ProgramFlow.normalExitWithMsg "No VPN selected"
     
@@ -46,8 +47,12 @@ let promptForSelection filterPredicate rows =
     Console.Clear()
     rv
 
-let extractOpenVpnConfig (vpnData : VpnList.Row) =
+let printSelectedVpn (vpnData : VpnList.Row) =
     printfn "Selected %s" (vpnData.``#HostName``)
+    vpnData
+
+/// Extracts the VPN config file from given CSV row.
+let extractOpenVpnConfig (vpnData : VpnList.Row) =
     try
         vpnData.OpenVPN_ConfigData_Base64
         |> Convert.FromBase64String
@@ -55,16 +60,24 @@ let extractOpenVpnConfig (vpnData : VpnList.Row) =
         |> ContinueData
     with ex -> ex.Message |> ProgramFlow.runtimeError
 
-let appendCustomConfigs configPaths configStr =
-    try 
-        let appends = configPaths |> Array.map IO.File.ReadAllText
-        let modifiedCfg = String.concat "\n" <| seq {
-            yield configStr
-            for a in appends -> a
-        }
-        ContinueData modifiedCfg
+let readConfigs paths =
+    try
+        paths |> Array.map IO.File.ReadAllText |> ContinueData
     with ex -> ex.Message |> ProgramFlow.runtimeError
 
+let mergeConfigs mainConfig configs =
+    seq {
+        yield mainConfig
+        for cfg in configs -> cfg
+    }
+    |> String.concat "\n"
+    |> ContinueData
+
+/// Loads user-specified config files from disk and appends them to the downloaded config.
+let readAndMergeConfigs configPaths configStr = readConfigs configPaths >>= mergeConfigs configStr
+
+// There's probably some way to pass the config directly through stdout
+// or something, but writing to a temp file is simpler
 let writeConfigToTempFile str =
     try
         let tempFile = IO.Path.GetTempFileName()
@@ -82,7 +95,7 @@ let invokeOpenVpn configPath =
 let printDataSource (_, path) = 
     printfn "Fetching endpoint list from '%s'..." path
 
-let printFetchResult rows =
+let printDataCount rows =
     printfn "Fetched %d rows from endpoint source." (Array.length rows)
     rows
 
@@ -93,18 +106,24 @@ let execute (config: Config) =
         config.AllowedRegions.Length = 0 || config.AllowedRegions |> Array.contains (x.CountryShort.ToLower())
     
     connectToDataSource config.DataSource
-    <!> printFetchResult
+    <!> printDataCount
     >>= promptForSelection regionFilter
+    <!> printSelectedVpn
     >>= extractOpenVpnConfig
-    >>= appendCustomConfigs config.ConfigPaths
+    >>= readAndMergeConfigs config.ConfigPaths
     >>= writeConfigToTempFile
     >>= invokeOpenVpn
 
 [<EntryPoint>]
 let main argv =
-    match argv |> parseArguments <!> Config.fromArgs >>= execute with
+    let config = 
+        argv 
+        |> parseArguments 
+        <!> Config.fromArgs
+
+    match config >>= execute with
     | ContinueData _ ->
-        printfn "Error: program exited without result"; 1
+        printfn "Error: execution returned without finishing"; 1
     | ExecResult (errCode, msg) ->
         match msg with 
         | Some msg -> msg |> printfn "%s" 

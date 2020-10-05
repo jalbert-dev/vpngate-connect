@@ -11,16 +11,20 @@ let private downloadVpnListCsv apiUrl =
         | code -> Error <| UnexpectedStatusCode code
     with ex -> Error <| WebError ex.Message
 
+/// Extracts the text body from an HTTP response, or returns an Error result if not text.
 let private expectTextResponse response =
     match response.Body with
     | Text body -> Ok body
     | _ -> Error UnexpectedContentType
 
+/// VPN Gate CSV has some unnecessary lines that trip up the CSV parser.
+/// This function returns true for the header, column list, and footer lines.
 let private isJunkLine (x : string) =
     x.Trim() = "*vpn_servers" ||
     x.StartsWith("#HostName") ||
     x.Trim() = "*"
 
+/// Removes extraneous lines from VPN Gate CSV gateway list.
 let private normalizeVpnGateCsv (csv : string) = 
     match csv with
     | "" ->
@@ -50,6 +54,7 @@ let private getLocalData path =
 let private getRemoteData url = 
     url |> downloadVpnListCsv >>= expectTextResponse
 
+/// Takes a data source tuple, connects to it, and returns the resulting list of VPNs.
 let connect dataSource =
     match dataSource with
     | Cli.RemoteUrl, url -> getRemoteData url

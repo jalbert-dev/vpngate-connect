@@ -44,50 +44,55 @@ let private incrementSelection state =
 let private decrementSelection state = 
     { state with SelectionIndex=max 0 (state.SelectionIndex-1)}
 
-let private confirmVpn state =
+let private confirmSelection state =
     // TODO: SelectVpn should probably own a seq that's a subslice of the data which is what's actually displayed.
     //       I guess we can regenerate this any time the filter/sort criteria change.
     state |> resultState (Some state.Data.[state.SelectionIndex])
 
-let private listDimensions termWidth termHeight = (termWidth - 2, termHeight - 7)
+[<Literal>]
+let private VerticalPadding = 8
+
+let private listDimensions termWidth termHeight = (termWidth - 2, termHeight - VerticalPadding)
 
 let private renderMenu state =
-    let cw = Console.WindowWidth
-    let ch = Console.WindowHeight
+    let consoleWidth = Console.WindowWidth
+    let consoleHeight = Console.WindowHeight
 
     seq {
         match state.Menu with
         | SelectVpn ->
-            yield "  Select a VPN endpoint to connect to" |> trimToLength cw
-            yield lineOf cw '-'
+            yield lineOf consoleWidth '-'
+            yield "  Select a VPN endpoint to connect to" |> trimToLength consoleWidth
+            yield lineOf consoleWidth '-'
 
-            let listW, listH = listDimensions cw ch
-            let displayMin = max 0 (state.SelectionIndex - listH / 2)
-            let displayMax = min (state.Data.Length - 1) (displayMin + listH)
+            let listWidth, listHeight = listDimensions consoleWidth consoleHeight
+            let displayMin = max 0 (state.SelectionIndex - listHeight / 2)
+            let displayMax = min (state.Data.Length - 1) (displayMin + listHeight)
 
             let displaySlice = state.Data.[displayMin..displayMax]
             for i in 0..displaySlice.Length-1 ->
                 let isSelected = (i = state.SelectionIndex - displayMin)
-                renderItem (displayMin+i+1) isSelected listW displaySlice.[i]
+                renderItem (displayMin+i+1) isSelected listWidth displaySlice.[i]
             
-            for _ in (Array.length displaySlice) .. (ch - 7) -> 
-                blankLine cw
+            for _ in (Array.length displaySlice) .. (consoleHeight - VerticalPadding) -> 
+                blankLine consoleWidth
             
-            yield lineOf cw '-'
-            yield " q - Quit without selecting | Enter - Confirm selection" |> trimToLength cw
-            yield lineOf cw '-'
+            yield lineOf consoleWidth '-'
+            yield " q - Quit without selecting | Enter - Confirm selection" |> trimToLength consoleWidth
+            yield lineOf consoleWidth '-'
             
         | Result _ -> 
             yield ""
     }
-    |> Seq.map (padToLength cw ' ')
+    |> Seq.map (padToLength consoleWidth ' ')
     |> String.concat "\n"
 
 let private selectVpnInputHandler = function
     | ConsoleKey.DownArrow -> incrementSelection
     | ConsoleKey.UpArrow -> decrementSelection
-    | ConsoleKey.Enter -> confirmVpn
+    | ConsoleKey.Enter -> confirmSelection
     | ConsoleKey.Q -> resultState None
+    | ConsoleKey.Escape -> resultState None
     | _ -> id
 
 let private getKey() = Console.ReadKey().Key
@@ -103,6 +108,7 @@ let rec private menuLoop drawFunction state =
     | _ -> 
         state |> renderMenu |> drawFunction
         state |> updateMenu |> menuLoop drawFunction
-    
+
+/// Shows a menu for choosing from a list of VPN items.
 let execRowSelectorMenu drawFunction data =
     { Menu=SelectVpn; Data=data; SelectionIndex=0 } |> menuLoop drawFunction 
