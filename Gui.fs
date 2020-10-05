@@ -1,4 +1,4 @@
-module Gui
+module VpnGateConnect.Gui
 
 open System
 

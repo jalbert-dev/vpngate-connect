@@ -1,4 +1,4 @@
-module Cli
+module VpnGateConnect.Cli
 
 open Argu
 

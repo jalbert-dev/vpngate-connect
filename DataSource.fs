@@ -1,4 +1,4 @@
-module DataSource
+module VpnGateConnect.DataSource
 
 open System.IO
 open FSharp.Data
@@ -33,7 +33,6 @@ let private stringToVpnList csv =
     | ex -> CsvParseError ex.Message |> Error
 
 let private (>>=) a b = Result.bind b a
-let private (>=>) a b = a >> Result.bind b
 
 let private getLocalData path = 
     if File.Exists(path) |> not then
@@ -42,7 +41,9 @@ let private getLocalData path =
         try
             File.ReadAllText path |> Ok
         with ex -> Error (CannotOpenFileBecause ex.Message)
-let private getRemoteData = downloadVpnListCsv >=> expectTextResponse
+
+let private getRemoteData url = 
+    url |> downloadVpnListCsv >>= expectTextResponse
 
 let connect dataSource =
     match dataSource with

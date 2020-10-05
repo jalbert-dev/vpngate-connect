@@ -1,5 +1,6 @@
-module VpnGateConnect
+namespace VpnGateConnect
 
+open VpnGateConnect
 open Argu
 
 type Config = {

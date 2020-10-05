@@ -1,5 +1,5 @@
 [<AutoOpen>]
-module DomainTypes
+module VpnGateConnect.DomainTypes
 
 open FSharp.Data
 
