@@ -19,7 +19,10 @@ let private trimToLength width str =
         str
 
 let private padToLength width (padChar : Char) str =
-    str + String.replicate (width - String.length str) (string padChar)
+    if String.length str <= width then
+        str + String.replicate (width - String.length str) (string padChar)
+    else
+        str
 
 let private lineOf width char =
     String.Empty |> padToLength width char
