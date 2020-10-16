@@ -12,9 +12,16 @@ let errorToMessage = function
 
 open ProgramFlow.Operators
 
-let private overwriteConsole (str : string) =
-    Console.SetCursorPosition(0, 0)
-    Console.WriteLine str
+let private consoleOverwriter colorDisabled =
+    fun (str : string) ->
+        Console.SetCursorPosition(0, 0)
+        for c in str do
+            match c with
+            | _ when int c >= ControlCharRangeStart && int c <= ControlCharRangeEnd ->
+                if not colorDisabled then
+                    Console.ForegroundColor <- decodeConsoleColor c
+            | _ -> 
+                Console.Write c
 
 let parseArguments argv =
     match argv |> Cli.parseArgs with
@@ -31,15 +38,16 @@ let resetConsoleProperties _ =
     Console.ResetColor()
 
 /// Shows a menu prompting user to select a VPN from those allowed by given filter predicate.
-let promptForSelection filterPredicate rows =
+let promptForSelection colorDisabled filterPredicate rows =
     Console.CancelKeyPress.Add(resetConsoleProperties)
     Console.CursorVisible <- false
     Console.Clear()
 
+    let drawFunction = consoleOverwriter colorDisabled
     let filteredRows = Array.filter filterPredicate rows
 
     let rv = 
-        match Gui.execRowSelectorMenu overwriteConsole filteredRows with
+        match Gui.execRowSelectorMenu drawFunction filteredRows with
         | Some selection -> ContinueData selection
         | None -> ProgramFlow.normalExitWithMsg "No VPN selected"
     
@@ -107,7 +115,7 @@ let execute (config: Config) =
     
     connectToDataSource config.DataSource
     <!> printDataCount
-    >>= promptForSelection regionFilter
+    >>= promptForSelection config.NoColor regionFilter
     <!> printSelectedVpn
     >>= extractOpenVpnConfig
     >>= readAndMergeConfigs config.ConfigPaths

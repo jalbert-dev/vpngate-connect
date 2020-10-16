@@ -8,6 +8,7 @@ type Config = {
     AllowedRegions: string array;
     ConfigPaths: string array;
     OpenVpnPath: string;
+    NoColor: bool;
 }
 
 module Config =
@@ -17,22 +18,25 @@ module Config =
 
     /// Constructs a configuration object from a completed argument parse.
     let fromArgs (args: ParseResults<Cli.ArgParser>) = { 
-            DataSource = 
-                args.TryGetResult(<@ Cli.Source @>) 
-                |> Option.defaultValue defaultVpnListSource; 
+        DataSource = 
+            args.TryGetResult(<@ Cli.Source @>) 
+            |> Option.defaultValue defaultVpnListSource; 
 
-            AllowedRegions = 
-                args.TryGetResult(<@ Cli.Regions @>) 
-                |> Option.map List.toArray 
-                |> Option.defaultValue [||] 
-                |> Array.map (fun x -> x.ToLower()); 
+        AllowedRegions = 
+            args.TryGetResult(<@ Cli.Regions @>) 
+            |> Option.map List.toArray 
+            |> Option.defaultValue [||] 
+            |> Array.map (fun x -> x.ToLower()); 
 
-            ConfigPaths = 
-                args.TryGetResult(<@ Cli.AppendConfigs @>) 
-                |> Option.map List.toArray 
-                |> Option.defaultValue [||];
+        ConfigPaths = 
+            args.TryGetResult(<@ Cli.AppendConfigs @>) 
+            |> Option.map List.toArray 
+            |> Option.defaultValue [||];
 
-            OpenVpnPath =
-                args.TryGetResult(<@ Cli.OpenVpnPath @>)
-                |> Option.defaultValue DefaultOpenVpnPath
+        OpenVpnPath =
+            args.TryGetResult(<@ Cli.OpenVpnPath @>)
+            |> Option.defaultValue DefaultOpenVpnPath
+
+        NoColor =
+            args.Contains(<@ Cli.NoColor @>)
     }
