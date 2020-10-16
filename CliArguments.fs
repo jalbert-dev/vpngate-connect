@@ -7,10 +7,10 @@ type DataSourceType =
     | [<CustomCommandLine("file")>] LocalPath
 
 type ArgParser = 
-    | [<AltCommandLine("-s"); Unique>] Source of DataSourceType*string
-    | [<AltCommandLine("-a"); Unique>] AppendConfigs of string list
-    | [<AltCommandLine("-r"); Unique>] Regions of string list
-    | [<AltCommandLine("-p"); Unique>] OpenVpnPath of string
+    | [<AltCommandLine("-s"); CustomCommandLine("--source"); Unique>] Source of DataSourceType*string
+    | [<AltCommandLine("-a"); CustomCommandLine("--config-paths"); Unique>] AppendConfigs of string list
+    | [<AltCommandLine("-r"); CustomCommandLine("--regions"); Unique>] Regions of string list
+    | [<AltCommandLine("-p"); CustomCommandLine("--openvpn-path"); Unique>] OpenVpnPath of string
 with 
     interface IArgParserTemplate with
         member this.Usage = 
