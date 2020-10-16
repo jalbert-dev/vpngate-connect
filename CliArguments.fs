@@ -11,6 +11,7 @@ type ArgParser =
     | [<AltCommandLine("-a"); CustomCommandLine("--config-paths"); Unique>] AppendConfigs of string list
     | [<AltCommandLine("-r"); CustomCommandLine("--regions"); Unique>] Regions of string list
     | [<AltCommandLine("-p"); CustomCommandLine("--openvpn-path"); Unique>] OpenVpnPath of string
+    | [<AltCommandLine("-nc"); CustomCommandLine("--no-color"); Unique>] NoColor
 with 
     interface IArgParserTemplate with
         member this.Usage = 
@@ -19,6 +20,7 @@ with
             | AppendConfigs _ -> "specify any number of paths to files whose contents should be appended to the OpenVPN config"
             | Regions _ -> "specify any number of region codes to include in the VPN list (by default, shows all regions)"
             | OpenVpnPath _ -> "specify the path to OpenVPN"
+            | NoColor _ -> "disables color output"
 
 let parseArgs argv =
     let parser = ArgumentParser.Create<ArgParser>(checkStructure=true)

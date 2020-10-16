@@ -30,13 +30,15 @@ let private lineOf width char =
 let private blankLine width = lineOf width ' '
 
 let private renderItem index selected maxWidth (row : VpnList.Row) rtt  =
-    sprintf "  [%c] %3d. %s  %sms, %s (%s)" 
+    sprintf "%c  [%c] %3d. %s  %sms, %s (%s)%c" 
+        (if selected then encodeConsoleColor ConsoleColor.Green else encodeDefaultConsoleColor)
         (if selected then 'X' else ' ')
         index
         row.CountryShort
         (rtt |> Option.defaultValue (string (int row.Ping)) |> padToLength 3 ' ')
         row.``#HostName``
         row.IP
+        encodeDefaultConsoleColor
     |> trimToLength maxWidth
 
 let private resultState result state = 
